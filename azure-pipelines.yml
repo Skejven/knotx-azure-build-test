@@ -1,0 +1,59 @@
+trigger:
+  - master
+
+pr:
+  branches:
+    include:
+      - '*'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  workspaceDir: knotx-repos
+
+steps:
+  - script: |
+      git clone https://github.com/Knotx/knotx-aggregator.git
+      mkdir $(workspaceDir)
+    displayName: "Prepare Aggregator"
+  - task: CmdLine@2
+    inputs:
+      script: |
+        cd knotx-aggregator/development
+        if [[ -z "$(System.PullRequest.SourceBranch)" ]] ; then
+          ./pull-all.sh -r ../../$(workspaceDir) -b "$(Build.SourceBranchName)" -a
+        else
+          ./pull-all.sh -r ../../$(workspaceDir) -b $(System.PullRequest.SourceBranch) -a
+        fi
+    displayName: "Clone all repositories"
+  - task: Gradle@2
+    inputs:
+      gradleWrapperFile: '$(workspaceDir)/knotx-stack/gradlew'
+      workingDirectory: '$(workspaceDir)/knotx-stack'
+      tasks: 'publish-local-all'
+    displayName: "Build Stack dependencies"
+  - task: Gradle@2
+    inputs:
+      gradleWrapperFile: '$(workspaceDir)/knotx-stack/gradlew'
+      workingDirectory: '$(workspaceDir)/knotx-stack'
+      tasks: 'build'
+    displayName: "Build Stack"
+  - task: Gradle@2
+    inputs:
+      gradleWrapperFile: '$(workspaceDir)/knotx-docker/gradlew'
+      workingDirectory: '$(workspaceDir)/knotx-docker'
+      tasks: 'build'
+    displayName: "Build Docker image"
+  - task: Gradle@2
+    inputs:
+      gradleWrapperFile: '$(workspaceDir)/knotx-starter-kit/gradlew'
+      workingDirectory: '$(workspaceDir)/knotx-starter-kit'
+      tasks: 'build-stack'
+    displayName: "Build Starter Kit: ZIP"
+  - task: Gradle@2
+    inputs:
+      gradleWrapperFile: '$(workspaceDir)/knotx-starter-kit/gradlew'
+      workingDirectory: '$(workspaceDir)/knotx-starter-kit'
+      tasks: 'build-docker'
+    displayName: "Build Starter Kit: Docker"
